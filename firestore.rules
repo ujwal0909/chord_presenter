@@ -1,0 +1,28 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Songs: Users can only read/write their own songs
+    match /songs/{songId} {
+      allow read, update, delete: if request.auth != null && request.auth.uid == resource.data.userId;
+      allow create: if request.auth != null;
+    }
+    
+    // States: Publicly readable for the Presenter, but only writable by the owner
+    match /states/{userId} {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Rooms: Mapping for Room Codes to userIds
+    match /rooms/{roomCode} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
+    // Shares: Publicly readable shared songs
+    match /shares/{shareId} {
+      allow read: if true;
+      allow write: if true;
+    }
+  }
+}

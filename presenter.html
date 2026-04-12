@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chord Presenter Display</title>
+    <link rel="stylesheet" href="style.css?v=5">
+    <style>
+        body { margin: 0; padding: 0; background: #000; overflow-x: hidden; }
+        .presenter-layout {
+            padding: 2rem;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            align-items: center;
+        }
+        .horizontal {
+            flex-direction: row;
+            justify-content: space-evenly;
+            align-items: flex-start;
+        }
+        .horizontal #viewLyrics {
+            columns: 2;
+            column-gap: 4rem;
+        }
+        .vertical #viewLyrics {
+            columns: 1;
+        }
+        
+        #viewTitle {
+            font-size: 3rem;
+            text-align: center;
+            margin-bottom: 0.5rem;
+            color: #fff;
+        }
+        #viewArtist {
+            font-size: 1.5rem;
+            text-align: center;
+            margin-bottom: 2rem;
+            color: #888;
+        }
+        #viewLyrics {
+            font-size: 3rem; /* Dynamic sizing would be better, but this is a start */
+            line-height: 2;
+            color: #fff;
+        }
+        .chord-label {
+            font-size: 2rem; /* Make chords a bit smaller than lyrics */
+        }
+    </style>
+</head>
+<body>
+    <div id="presenterContainer" class="presenter-layout vertical">
+        <div style="width: 100%;">
+            <h1 id="viewTitle">Waiting for connection...</h1>
+            <div id="viewArtist"></div>
+        </div>
+        <div id="viewLyrics" class="lyrics"></div>
+    </div>
+    <script type="module" src="presenter.js?v=6"></script>
+</body>
+</html>
