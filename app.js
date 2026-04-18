@@ -112,6 +112,18 @@ let currentSlideIndex = 0;
 let currentAutoScroll = false;
 let currentScrollSpeed = 5;
 let chordOnlyMode = false;
+let folders = [];
+let activeFolderId = null;
+let searchQuery = '';
+let currentTheme = localStorage.getItem('theme') || 'light';
+document.documentElement.setAttribute('data-theme', currentTheme);
+
+// Initialize theme button text
+function updateThemeBtnText() {
+    if (toggleThemeBtn) {
+        toggleThemeBtn.textContent = currentTheme === 'light' ? '🌙 Night Mode' : '☀️ Day Mode';
+    }
+}
 
 // --- DOM ELEMENTS ---
 const songListEl = document.getElementById('songList');
@@ -149,6 +161,10 @@ const shareUrlInput = document.getElementById('shareUrlInput');
 const copyShareBtn = document.getElementById('copyShareBtn');
 const closeShareBtn = document.getElementById('closeShareBtn');
 
+// Search Elements
+const sidebarSearch = document.getElementById('sidebarSearch');
+const songSearch = document.getElementById('songSearch');
+
 // Auth UI Elements
 const loginShowBtn = document.getElementById('loginShowBtn');
 const logoutBtn = document.getElementById('logoutBtn');
@@ -160,16 +176,75 @@ const googleLoginBtn = document.getElementById('googleLoginBtn');
 const closeAuthBtn = document.getElementById('closeAuthBtn');
 const authErrorEl = document.getElementById('authError');
 
+// Settings & Theme
+const settingsBtn = document.getElementById('settingsBtn');
+const settingsDropdown = document.getElementById('settingsDropdown');
+const toggleThemeBtn = document.getElementById('toggleThemeBtn');
+const helpBtn = document.getElementById('helpBtn');
+
+// Folder Elements
+const folderModal = document.getElementById('folderModal');
+const folderNameInput = document.getElementById('folderNameInput');
+const saveFolderBtn = document.getElementById('saveFolderBtn');
+const closeFolderBtn = document.getElementById('closeFolderBtn');
+const sidebarMenuBtn = document.getElementById('sidebarMenuBtn');
+const sidebarDropdown = document.getElementById('sidebarDropdown');
+const createFolderBtn = document.getElementById('createFolderBtn');
+const moveSongBtn = document.getElementById('moveSongBtn');
+const moveOutBtn = document.getElementById('moveOutBtn');
+const authFooterActions = document.getElementById('authFooterActions');
+
+// Move Modal Elements
+const moveModal = document.getElementById('moveModal');
+const moveFolderSelect = document.getElementById('moveFolderSelect');
+const confirmMoveBtn = document.getElementById('confirmMoveBtn');
+const closeMoveBtn = document.getElementById('closeMoveBtn');
+
+// Accept Share Elements
+const acceptShareModal = document.getElementById('acceptShareModal');
+const shareInfoText = document.getElementById('shareInfoText');
+const shareSongName = document.getElementById('shareSongName');
+const confirmAcceptShareBtn = document.getElementById('confirmAcceptShareBtn');
+const declineShareBtn = document.getElementById('declineShareBtn');
+
 // --- FIREBASE LOGIC ---
 
 onAuthStateChanged(auth, async (user) => {
     currentUser = user;
     if (user) {
         userInfoEl.style.display = 'flex';
-        userEmailEl.textContent = user.email;
+        
+        // Add avatar if not present
+        if (!userInfoEl.querySelector('.user-avatar')) {
+            const avatar = document.createElement('div');
+            avatar.className = 'user-avatar';
+            avatar.style.width = '32px';
+            avatar.style.height = '32px';
+            avatar.style.borderRadius = '50%';
+            avatar.style.background = 'var(--primary)';
+            avatar.style.display = 'flex';
+            avatar.style.alignItems = 'center';
+            avatar.style.justifyContent = 'center';
+            avatar.style.color = 'white';
+            avatar.style.fontWeight = 'bold';
+            avatar.style.fontSize = '0.8rem';
+            avatar.style.flexShrink = '0';
+            avatar.textContent = (user.displayName || user.email || '?')[0].toUpperCase();
+            userInfoEl.prepend(avatar);
+        }
+        
+        userEmailEl.textContent = user.displayName || user.email;
         loginShowBtn.style.display = 'none';
         authModal.style.display = 'none';
+        authFooterActions.style.display = 'block';
         
+        // Load folders
+        const fq = query(collection(db, "folders"), where("userId", "==", user.uid));
+        onSnapshot(fq, (snapshot) => {
+            folders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            updateSongList();
+        });
+
         // Load songs
         const q = query(collection(db, "songs"), where("userId", "==", user.uid));
         onSnapshot(q, (snapshot) => {
@@ -183,14 +258,17 @@ onAuthStateChanged(auth, async (user) => {
 
         // Room Code Logic
         await handleRoomCode(user.uid);
+        updateThemeBtnText();
 
         // Migrate localStorage if any
         await migrateLocalStorage(user.uid);
     } else {
         userInfoEl.style.display = 'none';
         loginShowBtn.style.display = 'block';
+        authFooterActions.style.display = 'none';
         roomCodeDisplayEl.textContent = '';
         songs = [];
+        folders = [];
         activeSongId = null;
         updateSongList();
         renderView();
@@ -262,25 +340,137 @@ async function broadcastState() {
 
 // --- APP LOGIC ---
 
+function createSongLi(song) {
+    const li = document.createElement('li');
+    li.textContent = song.title || 'Untitled';
+    if (song.id === activeSongId) li.classList.add('active');
+    
+    // Drag & Drop
+    li.draggable = true;
+    li.addEventListener('dragstart', (e) => {
+        e.dataTransfer.setData('songId', song.id);
+        e.dataTransfer.effectAllowed = 'move';
+    });
+
+    li.addEventListener('click', () => {
+        activeSongId = song.id;
+        currentTranspose = 0;
+        chordOnlyMode = false;
+        if (chordsOnlyBtn) {
+            chordsOnlyBtn.textContent = '🎸 Chords Only Mode';
+        }
+        renderView();
+        updateSongList();
+    });
+    return li;
+}
+
 function updateSongList() {
     songListEl.innerHTML = '';
-    songs.forEach(song => {
-        const li = document.createElement('li');
-        li.textContent = song.title || 'Untitled';
-        if (song.id === activeSongId) li.classList.add('active');
-        li.addEventListener('click', () => {
-            activeSongId = song.id;
-            currentTranspose = 0;
-            chordOnlyMode = false;
-            if (chordsOnlyBtn) {
-                chordsOnlyBtn.textContent = 'Chords Only';
-                chordsOnlyBtn.classList.remove('toggle-active');
-            }
-            renderView();
-            updateSongList();
-        });
-        songListEl.appendChild(li);
+
+    const filteredSongs = songs.filter(s => {
+        if (!searchQuery) return true;
+        const title = (s.title || '').toLowerCase();
+        const artist = (s.artist || '').toLowerCase();
+        return title.includes(searchQuery) || artist.includes(searchQuery);
     });
+
+    // Group songs by folder
+    const songGroups = {
+        'default': []
+    };
+
+    folders.forEach(f => songGroups[f.id] = []);
+    filteredSongs.forEach(s => {
+        if (s.folderId && songGroups[s.folderId]) {
+            songGroups[s.folderId].push(s);
+        } else {
+            songGroups['default'].push(s);
+        }
+    });
+
+    // Render Folders
+    let visibleFolders = 0;
+    folders.sort((a,b) => a.name.localeCompare(b.name)).forEach(folder => {
+        const folderSongs = songGroups[folder.id];
+        // If searching, hide empty folders
+        if (searchQuery && folderSongs.length === 0) return;
+        
+        visibleFolders++;
+        const details = document.createElement('details');
+        details.className = 'folder-details';
+        details.open = true;
+
+        const summary = document.createElement('summary');
+        summary.className = 'folder-summary';
+        summary.innerHTML = `<span class="folder-icon">▶</span> ${escapeHtml(folder.name)}`;
+        
+        // Drop zone for folder (the entire container)
+        details.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            details.classList.add('drag-over');
+        });
+        details.addEventListener('dragleave', () => details.classList.remove('drag-over'));
+        details.addEventListener('drop', (e) => {
+            e.preventDefault();
+            details.classList.remove('drag-over');
+            const songId = e.dataTransfer.getData('songId');
+            handleSongDrop(songId, folder.id);
+        });
+
+        const folderContent = document.createElement('div');
+        folderContent.className = 'folder-content';
+
+        if (folderSongs.length === 0) {
+            folderContent.innerHTML = '<div style="padding: 0.5rem 1rem; font-size: 0.8rem; color: var(--text-muted);">Empty folder</div>';
+        } else {
+            folderSongs.forEach(song => folderContent.appendChild(createSongLi(song)));
+        }
+
+        details.appendChild(summary);
+        details.appendChild(folderContent);
+        songListEl.appendChild(details);
+    });
+
+    // Render Uncategorized (default) songs
+    const uncategorizedContainer = document.createElement('div');
+    uncategorizedContainer.className = 'uncategorized-container';
+    
+    const label = document.createElement('div');
+    label.className = 'uncategorized-label';
+    label.textContent = folders.length > 0 ? 'Uncategorized' : 'All Songs';
+    label.style.fontSize = '0.75rem';
+    label.style.color = 'var(--text-muted)';
+    label.style.padding = '0.5rem 1rem';
+    uncategorizedContainer.appendChild(label);
+    
+    // Drop zone for the entire uncategorized area
+    uncategorizedContainer.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        uncategorizedContainer.classList.add('drag-over');
+    });
+    uncategorizedContainer.addEventListener('dragleave', () => uncategorizedContainer.classList.remove('drag-over'));
+    uncategorizedContainer.addEventListener('drop', (e) => {
+        e.preventDefault();
+        uncategorizedContainer.classList.remove('drag-over');
+        const songId = e.dataTransfer.getData('songId');
+        handleSongDrop(songId, null);
+    });
+    
+    songGroups['default'].forEach(song => uncategorizedContainer.appendChild(createSongLi(song)));
+    songListEl.appendChild(uncategorizedContainer);
+}
+
+async function handleSongDrop(songId, targetFolderId) {
+    if (!songId) return;
+    try {
+        await updateDoc(doc(db, "songs", songId), {
+            folderId: targetFolderId || null
+        });
+    } catch (err) {
+        console.error("Error moving song:", err);
+        alert("Failed to move song");
+    }
 }
 
 function renderView() {
@@ -439,6 +629,117 @@ window.addEventListener('keydown', (e) => {
     }
 });
 
+// Sidebar Menu & Folder Handlers
+sidebarMenuBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    sidebarDropdown.classList.toggle('show');
+});
+
+document.addEventListener('click', () => {
+    sidebarDropdown.classList.remove('show');
+});
+
+createFolderBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    folderModal.style.display = 'flex';
+});
+
+closeFolderBtn.addEventListener('click', () => {
+    folderModal.style.display = 'none';
+});
+
+saveFolderBtn.addEventListener('click', async () => {
+    if (!currentUser) return;
+    const name = folderNameInput.value.trim();
+    if (!name) return;
+
+    try {
+        await addDoc(collection(db, "folders"), {
+            name,
+            userId: currentUser.uid,
+            createdAt: serverTimestamp()
+        });
+        folderModal.style.display = 'none';
+        folderNameInput.value = '';
+    } catch (err) {
+        alert("Error creating folder");
+    }
+});
+
+moveSongBtn.addEventListener('click', async (e) => {
+    e.preventDefault();
+    if (!activeSongId) { alert("Select a song first"); return; }
+    
+    // Populate select
+    moveFolderSelect.innerHTML = '<option value="">📁 Uncategorized</option>';
+    folders.sort((a,b) => a.name.localeCompare(b.name)).forEach(f => {
+        const opt = document.createElement('option');
+        opt.value = f.id;
+        opt.textContent = `📁 ${f.name}`;
+        moveFolderSelect.appendChild(opt);
+    });
+
+    // Preset current folder if known
+    const song = songs.find(s => s.id === activeSongId);
+    if (song && song.folderId) {
+        moveFolderSelect.value = song.folderId;
+    }
+
+    moveModal.style.display = 'flex';
+});
+
+confirmMoveBtn.addEventListener('click', async () => {
+    if (!activeSongId) return;
+    const folderId = moveFolderSelect.value;
+    
+    try {
+        await updateDoc(doc(db, "songs", activeSongId), {
+            folderId: folderId || null
+        });
+        moveModal.style.display = 'none';
+    } catch (err) {
+        alert("Error moving song");
+    }
+});
+
+closeMoveBtn.addEventListener('click', () => {
+    moveModal.style.display = 'none';
+});
+
+moveOutBtn.addEventListener('click', async (e) => {
+    e.preventDefault();
+    if (!activeSongId) { alert("Select a song first"); return; }
+    
+    try {
+        await updateDoc(doc(db, "songs", activeSongId), {
+            folderId: null
+        });
+    } catch (err) {
+        alert("Error moving song");
+    }
+});
+
+settingsBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    settingsDropdown.classList.toggle('show');
+});
+
+document.addEventListener('click', () => {
+    settingsDropdown.classList.remove('show');
+});
+
+toggleThemeBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    currentTheme = currentTheme === 'light' ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-theme', currentTheme);
+    localStorage.setItem('theme', currentTheme);
+    updateThemeBtnText();
+});
+
+helpBtn.addEventListener('click', () => {
+    alert("Chord Presenter Help: Use the sidebar to organize songs. Use the '+' to add, and '⋮' to manage folders. Launch the presenter to sync with an external display.");
+});
+
 launchPresenterBtn.addEventListener('click', () => {
     if (!currentUser) { alert("Login to sync with presenter"); return; }
     const roomCode = roomCodeDisplayEl.dataset.code;
@@ -450,10 +751,10 @@ launchPresenterBtn.addEventListener('click', () => {
 });
 
 if (chordsOnlyBtn) {
-    chordsOnlyBtn.addEventListener('click', () => {
+    chordsOnlyBtn.addEventListener('click', (e) => {
+        e.preventDefault();
         chordOnlyMode = !chordOnlyMode;
-        chordsOnlyBtn.textContent = chordOnlyMode ? 'Show Lyrics' : 'Chords Only';
-        chordsOnlyBtn.classList.toggle('toggle-active', chordOnlyMode);
+        chordsOnlyBtn.textContent = chordOnlyMode ? '📄 Show Lyrics' : '🎸 Chords Only Mode';
         renderView();
     });
 }
@@ -467,6 +768,7 @@ shareSongBtn.addEventListener('click', async () => {
     try {
         const shareRef = await addDoc(collection(db, "shares"), {
             song: activeSong,
+            sharerName: currentUser.displayName || currentUser.email,
             createdAt: serverTimestamp()
         });
         const shareUrl = `${window.location.origin}${window.location.pathname}?share=${shareRef.id}`;
@@ -485,6 +787,15 @@ copyShareBtn.addEventListener('click', () => {
 });
 
 closeShareBtn.addEventListener('click', () => shareBanner.style.display = 'none');
+
+// --- SEARCH HANDLERS ---
+// --- SEARCH HANDLERS ---
+if (songSearch) {
+    songSearch.addEventListener('input', (e) => {
+        searchQuery = e.target.value.toLowerCase().trim();
+        updateSongList();
+    });
+}
 
 // --- AUTH UI HANDLERS ---
 
@@ -512,32 +823,55 @@ logoutBtn.addEventListener('click', () => signOut(auth));
 const urlParams = new URLSearchParams(window.location.search);
 const shareId = urlParams.get('share');
 if (shareId) {
+    let pendingSharedSong = null;
+
     const loadShare = async () => {
         const shareDoc = await getDoc(doc(db, "shares", shareId));
         if (shareDoc.exists()) {
-            const sharedSong = shareDoc.data().song;
-            if (currentUser) {
-                // Save to their library
-                const exists = songs.find(s => s.title === sharedSong.title);
-                if (!exists) {
-                    const docRef = await addDoc(collection(db, "songs"), {
-                        ...sharedSong,
-                        userId: currentUser.uid,
-                        createdAt: serverTimestamp()
-                    });
-                    activeSongId = docRef.id;
-                } else {
-                    activeSongId = exists.id;
-                }
-            } else {
-                // Temporary view? For now let's just push it to a local list if not logged in
-                // or force login. Let's just alert.
-                alert("Login to save this shared song to your library.");
-            }
-            // Clean URL
-            const newUrl = window.location.origin + window.location.pathname;
-            window.history.replaceState({}, '', newUrl);
+            const shareData = shareDoc.data();
+            pendingSharedSong = shareData.song;
+            
+            // Show Modal
+            shareInfoText.textContent = `${shareData.sharerName || 'Someone'} shared a song with you:`;
+            shareSongName.textContent = pendingSharedSong.title;
+            acceptShareModal.style.display = 'flex';
         }
     };
     loadShare();
+
+    confirmAcceptShareBtn.addEventListener('click', async () => {
+        if (!currentUser) {
+            alert("Please login to save this shared song to your library.");
+            authModal.style.display = 'flex';
+            return;
+        }
+
+        if (pendingSharedSong) {
+            const exists = songs.find(s => s.title === pendingSharedSong.title);
+            if (!exists) {
+                const docRef = await addDoc(collection(db, "songs"), {
+                    ...pendingSharedSong,
+                    userId: currentUser.uid,
+                    createdAt: serverTimestamp()
+                });
+                activeSongId = docRef.id;
+            } else {
+                activeSongId = exists.id;
+            }
+            renderView();
+            updateSongList();
+        }
+
+        acceptShareModal.style.display = 'none';
+        // Clean URL
+        const newUrl = window.location.origin + window.location.pathname;
+        window.history.replaceState({}, '', newUrl);
+    });
+
+    declineShareBtn.addEventListener('click', () => {
+        acceptShareModal.style.display = 'none';
+        // Clean URL
+        const newUrl = window.location.origin + window.location.pathname;
+        window.history.replaceState({}, '', newUrl);
+    });
 }

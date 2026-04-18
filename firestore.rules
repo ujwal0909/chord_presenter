@@ -24,5 +24,10 @@ service cloud.firestore {
       allow read: if true;
       allow write: if true;
     }
+    // Folders: Users can only read/write their own folders
+    match /folders/{folderId} {
+      allow read, update, delete: if request.auth != null && request.auth.uid == resource.data.userId;
+      allow create: if request.auth != null;
+    }
   }
 }

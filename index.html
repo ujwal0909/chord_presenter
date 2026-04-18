@@ -4,26 +4,56 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Chord Presenter Control</title>
-    <link rel="stylesheet" href="style.css?v=9">
+    <link rel="stylesheet" href="style.css?v=11">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
     <div class="app-container">
         <!-- Sidebar -->
         <aside class="glass-panel sidebar">
+            <!-- Profile Section (Top Left) -->
+            <div class="sidebar-profile">
+                <div id="userInfo" class="user-info" style="display: none;">
+                    <div class="user-details">
+                        <span id="userEmail" class="text-truncate">Not Signed In</span>
+                        <span id="roomCodeDisplay" style="font-size: 0.75rem; color: var(--primary); font-weight: 700;"></span>
+                    </div>
+                </div>
+                <button id="loginShowBtn" class="btn primary small full-width">Sign In</button>
+            </div>
+
+            <!-- Songs Header -->
             <div class="sidebar-header">
                 <h2>Songs</h2>
-                <button id="addSongBtn" class="btn primary small">+ Add Song</button>
-            </div>
-            <ul id="songList" class="song-list">
-                <!-- Song list items will be injected here -->
-            </ul>
-            <div class="sidebar-footer">
-                <div id="userInfo" class="user-info" style="display: none;">
-                    <span id="userEmail"></span>
-                    <span id="roomCodeDisplay" style="font-weight: bold; color: var(--accent);"></span>
-                    <button id="logoutBtn" class="btn small">Logout</button>
+                <div class="sidebar-actions">
+                    <button id="addSongBtn" class="icon-btn" title="Add Song">＋</button>
+                    <div class="dropdown">
+                        <button id="sidebarMenuBtn" class="icon-btn" title="Menu">⋮</button>
+                        <div id="sidebarDropdown" class="dropdown-content">
+                            <a href="#" id="createFolderBtn">📁 Create Folder</a>
+                            <a href="#" id="moveSongBtn">📂 Move to Folder</a>
+                            <a href="#" id="moveOutBtn">📤 Move out of Folder</a>
+                        </div>
+                    </div>
                 </div>
-                <button id="loginShowBtn" class="btn primary small full-width">Login / Signup</button>
+            </div>
+
+            <!-- Sidebar Search -->
+            <div id="sidebarSearch" style="margin-bottom: 1rem;">
+                <input type="text" id="songSearch" placeholder="Search by title or artist...">
+            </div>
+
+            <!-- Song List (with Folder Groups) -->
+            <ul id="songList" class="song-list">
+                <!-- Injected via JS -->
+            </ul>
+
+            <!-- Sidebar Footer -->
+            <div class="sidebar-footer">
+                <button id="helpBtn" class="minimal-btn">Help</button>
+                <div id="authFooterActions" style="display: none;">
+                    <button id="logoutBtn" class="minimal-btn logout-btn">Logout</button>
+                </div>
             </div>
         </aside>
 
@@ -32,61 +62,65 @@
             <!-- Header Controls -->
             <header class="controls-header">
                 <div class="controls-group">
-                    <button id="editSongBtn" class="btn">Edit</button>
-                    <button id="deleteSongBtn" class="btn">Delete</button>
-                    <button id="shareSongBtn" class="btn primary">Share</button>
+                    <button id="editSongBtn" class="icon-btn action-btn" title="Edit Song">✏️</button>
+                    <button id="deleteSongBtn" class="icon-btn action-btn text-danger" title="Delete Song">🗑️</button>
                 </div>
 
                 <div class="controls-group">
-                    <button id="launchPresenterBtn" class="btn primary">Launch Presenter</button>
-                    <select id="layoutToggle" style="width: auto;">
-                        <option value="vertical">Vertical</option>
-                        <option value="horizontal">Horizontal</option>
+                    <button id="launchPresenterBtn" class="btn primary small">Launch Presenter</button>
+                    <select id="layoutToggle" class="select-clean">
+                        <option value="vertical">Vertical Layout</option>
+                        <option value="horizontal">Horizontal Layout</option>
                     </select>
-                    <select id="modeToggle" style="width: auto;">
+                    <select id="modeToggle" class="select-clean">
                         <option value="slides">Slides</option>
-                        <option value="scroll">Scroll</option>
+                        <option value="scroll">Scrolling</option>
                     </select>
-                    <button id="chordsOnlyBtn" class="btn">Chords Only</button>
+                    
+                    <div class="dropdown">
+                        <button id="settingsBtn" class="icon-btn" title="Settings">⚙️</button>
+                        <div id="settingsDropdown" class="dropdown-content">
+                            <a href="#" id="toggleThemeBtn">🌓 Toggle Mode</a>
+                            <a href="#" id="chordsOnlyBtn">🎸 Chords Only Mode</a>
+                            <a href="#" id="shareSongBtn">🔗 Share Song</a>
+                        </div>
+                    </div>
                 </div>
             </header>
 
-            <!-- Slide Controls (Only visible in Slide Mode) -->
-            <div id="slideControls" class="controls-group" style="display: none; justify-content: center; margin-bottom: 10px;">
-                <button id="prevSlideBtn" class="btn">&larr; Prev</button>
-                <span id="slideIndicator" style="margin: 0 10px;">Slide 1</span>
-                <button id="nextSlideBtn" class="btn">Next &rarr;</button>
+            <!-- Mode-specific Controls -->
+            <div id="slideControls" class="controls-group" style="display: none; justify-content: center; margin-bottom: 1rem;">
+                <button id="prevSlideBtn" class="btn small">&larr;</button>
+                <span id="slideIndicator" style="font-weight: 600; font-size: 0.9rem;">Slide 1</span>
+                <button id="nextSlideBtn" class="btn small">&rarr;</button>
             </div>
 
-            <!-- Scroll Controls (Only visible in Scroll Mode) -->
-            <div id="scrollControls" class="controls-group" style="display: none; justify-content: center; align-items: center; margin-bottom: 10px;">
-                <label style="margin-right: 15px; display: flex; align-items: center; gap: 5px; cursor: pointer;">
+            <div id="scrollControls" class="controls-group" style="display: none; justify-content: center; align-items: center; margin-bottom: 1rem;">
+                <label style="font-size: 0.85rem; display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
                     <input type="checkbox" id="autoScrollToggle"> Auto Scroll
                 </label>
-                <label style="display: flex; align-items: center; gap: 10px;">
-                    Speed: 
-                    <input type="range" id="scrollSpeedSlider" min="1" max="10" value="5" style="width: 100px;">
-                </label>
+                <input type="range" id="scrollSpeedSlider" min="1" max="10" value="5" style="width: 80px;">
             </div>
 
             <!-- Share Banner -->
-            <div id="shareBanner" class="share-banner" style="display: none;">
-                <span>Share link:</span>
-                <input type="text" id="shareUrlInput" readonly class="share-input">
-                <button id="copyShareBtn" class="btn">Copy</button>
-                <button id="closeShareBtn" class="btn" style="background: transparent; border: none;">&times;</button>
+            <div id="shareBanner" class="share-banner" style="display: none; margin-bottom: 1rem; background: var(--bg-base); padding: 0.75rem; border-radius: 12px;">
+                <input type="text" id="shareUrlInput" readonly style="font-size: 0.8rem; flex-grow: 1;">
+                <button id="copyShareBtn" class="btn small">Copy</button>
+                <button id="closeShareBtn" class="icon-btn small">&times;</button>
             </div>
 
             <!-- Viewer -->
             <section id="songViewer" class="song-viewer active">
                 <div class="song-header">
                     <div class="song-title-row">
-                        <h1 id="viewTitle">No Song Selected</h1>
+                        <h1 id="viewTitle" style="font-size: 2.25rem;">No Song Selected</h1>
                         <span class="key-badge" id="keyDisplay" style="display:none"></span>
-                        <div class="controls-group" style="margin-left: auto;">
-                            <button id="transposeDownBtn" class="btn">−</button>
+                        
+                        <!-- Transpose Pill Control -->
+                        <div class="transpose-pill" style="margin-left: auto;">
+                            <button id="transposeDownBtn" class="pill-btn">−</button>
                             <span class="transpose-badge" id="transposeBadge">0</span>
-                            <button id="transposeUpBtn" class="btn">+</button>
+                            <button id="transposeUpBtn" class="pill-btn">+</button>
                         </div>
                     </div>
                     <div id="viewArtist" class="song-meta">Select or add a song to begin.</div>
@@ -96,11 +130,13 @@
 
             <!-- Editor -->
             <section id="songEditor" class="editor-form">
-                <input type="text" id="editTitle" placeholder="Song Title">
-                <input type="text" id="editArtist" placeholder="Artist">
-                <textarea id="editContent" placeholder="Song Lyrics with chords like [G] and [C]..."></textarea>
+                <div class="editor-header-fields">
+                    <input type="text" id="editTitle" placeholder="Song Title" style="font-weight: 700; font-size: 1.25rem;">
+                    <input type="text" id="editArtist" placeholder="Artist" style="width: 40%;">
+                </div>
+                <textarea id="editContent" placeholder="Enter lyrics with [G] [C] [D] chords..."></textarea>
                 <div class="controls-group">
-                    <button id="saveSongBtn" class="btn primary">Save</button>
+                    <button id="saveSongBtn" class="btn primary">Save Changes</button>
                     <button id="cancelEditBtn" class="btn">Cancel</button>
                 </div>
             </section>
@@ -109,20 +145,62 @@
 
     <!-- Auth Modal -->
     <div id="authModal" class="modal-overlay" style="display: none;">
-        <div class="modal-content glass-panel" style="text-align: center;">
-            <h2 id="authTitle" style="margin-bottom: 0.5rem;">Welcome</h2>
-            <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1.5rem;">Please sign in with your Google account to manage your songs and presenter state.</p>
-            <div id="authError" class="error-msg" style="display: none; margin-bottom: 1rem;"></div>
+        <div class="modal-content glass-panel">
+            <h2 id="authTitle">Welcome</h2>
+            <p style="color: var(--text-muted); font-size: 0.9rem;">Sign in to sync your songs across devices.</p>
+            <div id="authError" class="error-msg" style="display: none;"></div>
             <div class="auth-buttons">
                 <button id="googleLoginBtn" class="btn google-btn">
-                    <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google icon" style="width: 18px; margin-right: 8px;">
-                    Sign in with Google
+                    <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" style="width: 18px;">
+                    Google Account
                 </button>
-                <button id="closeAuthBtn" class="btn" style="margin-top: 0.5rem;">Cancel</button>
+                <button id="closeAuthBtn" class="minimal-btn">Dismiss</button>
             </div>
         </div>
     </div>
 
-    <script type="module" src="app.js?v=10"></script>
+    <!-- Folder Name Modal -->
+    <div id="folderModal" class="modal-overlay" style="display: none;">
+        <div class="modal-content glass-panel">
+            <h3>New Folder</h3>
+            <input type="text" id="folderNameInput" placeholder="Enter folder name...">
+            <div class="controls-group" style="justify-content: flex-end;">
+                <button id="saveFolderBtn" class="btn primary small">Create</button>
+                <button id="closeFolderBtn" class="btn small">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Move to Folder Modal -->
+    <div id="moveModal" class="modal-overlay" style="display: none;">
+        <div class="modal-content glass-panel">
+            <h3>Move to Folder</h3>
+            <p style="font-size: 0.85rem; color: var(--text-muted);">Select a destination for your song:</p>
+            <select id="moveFolderSelect">
+                <option value="">📁 Uncategorized</option>
+                <!-- Folders injected via JS -->
+            </select>
+            <div class="controls-group" style="justify-content: flex-end;">
+                <button id="confirmMoveBtn" class="btn primary small">Move</button>
+                <button id="closeMoveBtn" class="btn small">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Accept Share Modal -->
+    <div id="acceptShareModal" class="modal-overlay" style="display: none;">
+        <div class="modal-content glass-panel">
+            <h3>Shared Song</h3>
+            <p id="shareInfoText" style="font-size: 0.95rem; margin-bottom: 0.5rem;"></p>
+            <div id="shareSongName" style="font-size: 1.25rem; font-weight: 700; margin-bottom: 1.5rem; color: var(--primary);"></div>
+            <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1.5rem;">Would you like to save this song to your library?</p>
+            <div class="controls-group" style="justify-content: center; gap: 1rem;">
+                <button id="confirmAcceptShareBtn" class="btn primary">Accept & Save</button>
+                <button id="declineShareBtn" class="btn">Decline</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="app.js?v=11"></script>
 </body>
 </html>

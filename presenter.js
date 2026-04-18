@@ -12,7 +12,15 @@ const ALIASES = { 'Db': 'C#', 'Eb': 'D#', 'Gb': 'F#', 'Ab': 'G#', 'Bb': 'A#' };
 const syncChannel = new BroadcastChannel('chord_presenter_local_sync');
 
 let lastLocalUpdateAt = 0;
-const SYNC_GRACE_PERIOD = 2000; // 2 seconds to ignore incoming syncs after local interaction
+const SYNC_GRACE_PERIOD = 2000;
+let resizeTimer;
+
+window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+        fitTextToContainer();
+    }, 100);
+});
 
 function escapeHtml(str) {
     if (!str) return '';
@@ -70,6 +78,36 @@ function parseLyricsWithChords(rawText, transposeStep = 0, mode = 'scroll', slid
     return html;
 }
 
+function fitTextToContainer() {
+    if (!lastKnownState || lastKnownState.mode !== 'slides') {
+        viewLyrics.style.fontSize = ''; // Reset to CSS default for scrolling
+        return;
+    }
+
+    let min = 10;
+    let max = 200;
+    let optimal = min;
+
+    // Use binary search for efficiency
+    while (min <= max) {
+        let mid = Math.floor((min + max) / 2);
+        viewLyrics.style.fontSize = mid + 'px';
+        
+        // Check for overflow
+        const isOverflowing = (document.documentElement.scrollHeight > window.innerHeight) || 
+                             (document.documentElement.scrollWidth > window.innerWidth);
+        
+        if (!isOverflowing) {
+            optimal = mid;
+            min = mid + 1;
+        } else {
+            max = mid - 1;
+        }
+    }
+    
+    viewLyrics.style.fontSize = (optimal - 1) + 'px'; // -1 for safety margin
+}
+
 const viewTitle = document.getElementById('viewTitle');
 const viewArtist = document.getElementById('viewArtist');
 const viewLyrics = document.getElementById('viewLyrics');
@@ -94,6 +132,9 @@ function renderView() {
     container.className = `presenter-layout ${layout || 'vertical'}`;
     if (chordOnlyMode) viewLyrics.classList.add('chords-only');
     else viewLyrics.classList.remove('chords-only');
+
+    // Trigger auto-sizing
+    fitTextToContainer();
 }
 
 window.addEventListener('keydown', (e) => {
